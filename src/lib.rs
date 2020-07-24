@@ -1,24 +1,11 @@
 #[macro_use]
 extern crate typed_builder;
-/*
-labeled!(name({foo: usize, bar: usize}) -> () {
-    prusizeln!("called {foo}{bar}",
-        foo = foo,
-        bar = bar);
-});
-// FIXME: Or perhaps
-#[labelled_args]
-fn name({foo: usize, bar: usize}) -> () {
-    // ...
-}
-*/
-// Compiles to
 
-// FIXME: handle 0 args, 1 arg.
 macro_rules! labeled {
-    ($name:ident ({ $($args:ident : $types:ty),* }) $block: block ) => {
+    ($name:ident ({ $($args:ident : $types:ty $( = $default:expr)? ),* $(,)? }) $(-> $ret:ty)? $block: block ) => {
         pub mod $name {
-            // A convoluted way to transform a type T into ()
+
+            /// A convoluted way to transform a type T into ()
             pub trait HasUnit<T> {
                 type Unit;
             }
@@ -28,20 +15,32 @@ macro_rules! labeled {
             impl<T> HasUnit<T> for IHaveUnit<T> {
                 type Unit = ();
             }
-            pub fn build() -> ArgsBuilder<( $( <IHaveUnit<$types> as HasUnit<$types>>::Unit ),* )> {
+
+            /// Start building the call.
+            pub fn labeled() -> ArgsBuilder<( $( <IHaveUnit<$types> as HasUnit<$types>>::Unit ),* )> {
                 Args::builder()
             }
+
+
+
+            /// A data structure containing the args.
+            ///
+            /// We use `TypedBuilder` to generate the FSM that guarantees
+            /// statically that we're typing properly.
             #[derive(TypedBuilder)]
             pub struct Args {
-                $($args : $types),*
+                $(
+                    $( #[builder(default=$default)] )?
+                    $args : $types
+                ),*
             }
             impl Args {
-                pub fn call(self) {
+                pub fn call(self) $(-> $ret:ty)? {
                     super::$name($(self.$args),*)
                 }
             }
         }
-        fn $name($($args: $types),*) {
+        fn $name($($args: $types),*) $(-> $ret:ty)? {
             $block
         }
     };
@@ -51,20 +50,40 @@ macro_rules! labeled {
 
 #[cfg(test)]
 mod tests {
-    labeled!(name2({foo: usize, bar: usize, sna: String}) {
-        println!("called {foo}{bar}{sna}",
+    // Test with 3 arguments.
+    labeled!(name_3({foo: usize, bar: usize, sna: String}) {
+        println!("name_3 (foo = {foo}, bar = {bar}, sna = {sna})",
             foo = foo,
             bar = bar,
             sna = sna);
     });
 
+    // Test with default argument
+    labeled!(name_default({foo: usize, bar: usize, sna: String = "default".to_string()}) {
+        println!("name_default (foo = {foo}, bar = {bar}, sna = {sna})",
+            foo = foo,
+            bar = bar,
+            sna = sna);
+    });
+
+    // Test with 0 arguments.
+    labeled!(name_0({}) {
+        println!("name_0 ()");
+    });
+
     #[test]
     fn it_works() {
-        name2::build()
+        name_3::labeled()
             .sna("My name is sna".to_string())
             .bar(1000)
             .foo(0)
             .build()
             .call();
+        name_default::labeled()
+            .bar(1000)
+            .foo(0)
+            .build()
+            .call();
+        name_0::labeled().build().call();
     }
 }
