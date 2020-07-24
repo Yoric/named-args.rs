@@ -1,6 +1,92 @@
-#[macro_use]
-extern crate typed_builder;
-
+//! Early prototype of a macro designed to provide labeled arguments (aka named arguments
+//! aka positional arguments) to your Rust code.
+//!
+//! Instead of:
+//! ```
+//! fn do_rect(width: f64, height: f64) {
+//!     // ...
+//! }
+//! const WIDTH : f64 = 10.0;
+//! const HEIGHT: f64 = 30.0;
+//! do_rect(WIDTH, HEIGHT); // Oops, confused width and height.
+//! ```
+//!
+//! Let's do this:
+//! ```
+//! #[macro_use]
+//! extern crate named_args;
+//! #[macro_use]
+//! extern crate typed_builder;
+//!
+//! labeled!(do_rect({width: f64, height: f64}) {
+//!   // ...
+//! });
+//!
+//! fn main() {
+//!   const WIDTH : f64 = 10.0;
+//!   const HEIGHT: f64 = 30.0;
+//!   do_rect::labeled()
+//!       .width(WIDTH)   // No confusion here. Order doesn't matter.
+//!       .height(HEIGHT) // No confusion here. Order doesn't matter.
+//!       .build()
+//!       .call();
+//! }
+//! ```
+//!
+//! We can even add optional arguments:
+//!
+//! ```
+//! #[macro_use]
+//! extern crate named_args;
+//! #[macro_use]
+//! extern crate typed_builder;
+//!
+//! labeled!(do_rect({width: f64, height: f64, opacity : f64 = 1.0}) {
+//!   // ...
+//! });
+//!
+//! fn main() {
+//!   const WIDTH : f64 = 10.0;
+//!   const HEIGHT: f64 = 30.0;
+//!   // With the optional argument:
+//!   do_rect::labeled()
+//!       .width(WIDTH)   // No confusion here. Order doesn't matter.
+//!       .opacity(0.)    // Order still doesn't matter.
+//!       .height(HEIGHT) // No confusion here. Order doesn't matter.
+//!       .build()
+//!       .call();
+//!
+//!   // Or without:
+//!   do_rect::labeled()
+//!       .width(WIDTH)   // No confusion here. Order doesn't matter.
+//!       .height(HEIGHT) // No confusion here. Order doesn't matter.
+//!       .build()
+//!       .call();
+//!}
+//! ```
+//!
+//! Omitting a required field will cause a type error:
+//! ```compile_fail
+//! #[macro_use]
+//! extern crate named_args;
+//! #[macro_use]
+//! extern crate typed_builder;
+//!
+//! labeled!(do_rect({width: f64, height: f64, opacity : f64 = 1.0}) {
+//!   // ...
+//! });
+//!
+//! fn main() {
+//!   const WIDTH : f64 = 10.0;
+//!   const HEIGHT: f64 = 30.0;
+//!
+//!   do_rect::labeled()
+//!       .width(WIDTH)   // No confusion here. Order doesn't matter.
+//!       .build()        // <-- Build error here.
+//!       .call();
+//!}
+//!```
+#[macro_export]
 macro_rules! labeled {
     ($name:ident ({ $($args:ident : $types:ty $( = $default:expr)? ),* $(,)? }) $(-> $ret:ty)? $block: block ) => {
         pub mod $name {
@@ -20,8 +106,6 @@ macro_rules! labeled {
             pub fn labeled() -> ArgsBuilder<( $( <IHaveUnit<$types> as HasUnit<$types>>::Unit ),* )> {
                 Args::builder()
             }
-
-
 
             /// A data structure containing the args.
             ///
@@ -44,46 +128,4 @@ macro_rules! labeled {
             $block
         }
     };
-}
-
-
-
-#[cfg(test)]
-mod tests {
-    // Test with 3 arguments.
-    labeled!(name_3({foo: usize, bar: usize, sna: String}) {
-        println!("name_3 (foo = {foo}, bar = {bar}, sna = {sna})",
-            foo = foo,
-            bar = bar,
-            sna = sna);
-    });
-
-    // Test with default argument
-    labeled!(name_default({foo: usize, bar: usize, sna: String = "default".to_string()}) {
-        println!("name_default (foo = {foo}, bar = {bar}, sna = {sna})",
-            foo = foo,
-            bar = bar,
-            sna = sna);
-    });
-
-    // Test with 0 arguments.
-    labeled!(name_0({}) {
-        println!("name_0 ()");
-    });
-
-    #[test]
-    fn it_works() {
-        name_3::labeled()
-            .sna("My name is sna".to_string())
-            .bar(1000)
-            .foo(0)
-            .build()
-            .call();
-        name_default::labeled()
-            .bar(1000)
-            .foo(0)
-            .build()
-            .call();
-        name_0::labeled().build().call();
-    }
 }
